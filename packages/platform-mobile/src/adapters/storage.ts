@@ -1,4 +1,4 @@
-import { Directory, Filesystem } from "@capacitor/filesystem";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Preferences } from "@capacitor/preferences";
 import type { StorageAdapter } from "@core/index";
 import { base64ToBytes, bytesToBase64 } from "@core/util/bytes";
@@ -26,6 +26,10 @@ function blobFileFor(id: string): string {
 }
 function backupFileFor(id: string): string {
 	return `vault-${id}.vlt1.bak`;
+}
+/** Entries a vault couldn't decrypt, kept sealed beside it. */
+function quarantineFileFor(id: string): string {
+	return `vault-${id}.quarantine.json`;
 }
 /** A per-vault sync value's Preferences key: `meta:<base>:<id>`. */
 function syncMetaKey(base: string, id: string): string {
@@ -224,12 +228,33 @@ export const mobileStorage: StorageAdapter = {
 		return true;
 	},
 	/** Delete a vault's blob file and recovery snapshot. Idempotent (missing files are skipped). */
+	async readQuarantine(vaultId) {
+		if (!vaultId) throw new Error("readQuarantine needs a vault id");
+		await ensureMigrated();
+		const path = quarantineFileFor(vaultId);
+		if (!(await fileExists(path))) return null;
+		const r = await Filesystem.readFile({ path, directory: DIR, encoding: Encoding.UTF8 });
+		return r.data as string;
+	},
+	async writeQuarantine(json, vaultId) {
+		if (!vaultId) throw new Error("writeQuarantine needs a vault id");
+		await ensureMigrated();
+		await Filesystem.writeFile({
+			path: quarantineFileFor(vaultId),
+			directory: DIR,
+			data: json,
+			encoding: Encoding.UTF8,
+		});
+	},
 	async deleteVaultBlob(vaultId) {
 		await ensureMigrated();
 		const path = blobFileFor(vaultId);
 		const bak = backupFileFor(vaultId);
+		const quarantine = quarantineFileFor(vaultId);
 		if (await fileExists(path)) await Filesystem.deleteFile({ path, directory: DIR });
 		if (await fileExists(bak)) await Filesystem.deleteFile({ path: bak, directory: DIR });
+		if (await fileExists(quarantine))
+			await Filesystem.deleteFile({ path: quarantine, directory: DIR });
 	},
 
 	// Meta reads/writes gate on the migration too: the registry lives here, so a read that skipped

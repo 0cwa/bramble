@@ -12,6 +12,7 @@ const { files, prefs } = vi.hoisted(() => ({
 
 vi.mock("@capacitor/filesystem", () => ({
 	Directory: { Data: "DATA" },
+	Encoding: { UTF8: "utf8" },
 	Filesystem: {
 		stat: async ({ path }: { path: string }) => {
 			if (!files.has(path)) throw new Error("not found");
@@ -236,5 +237,29 @@ describe("subscribeMeta", () => {
 		off?.();
 		await storage.setMeta("backup.targets:v", []);
 		expect(seen).toEqual(["targets", "targets"]);
+	});
+});
+
+describe("quarantine", () => {
+	it("keeps a vault's quarantine in its own file and deletes it with the vault", async () => {
+		prefs.set(
+			REG_KEY,
+			JSON.stringify({
+				vaults: [
+					{ id: "a", label: "", createdAt: 1 },
+					{ id: "b", label: "", createdAt: 2 },
+				],
+			} satisfies VaultRegistry),
+		);
+		const storage = await loadStorage();
+		await storage.writeVaultBlob(new Uint8Array([1]), "a");
+		await storage.writeQuarantine?.("[]", "a");
+		expect(await storage.readQuarantine?.("a")).toBe("[]");
+		expect(await storage.readQuarantine?.("b")).toBeNull();
+		// A file, not Preferences: settings storage is no place for kept entries.
+		expect([...prefs.keys()].some((k) => k.includes("quarantine"))).toBe(false);
+
+		await storage.deleteVaultBlob("a");
+		expect(await storage.readQuarantine?.("a")).toBeNull();
 	});
 });
