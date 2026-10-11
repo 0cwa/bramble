@@ -207,8 +207,10 @@ import {
 	wrapRecoverySlot as buildRecoverySlot,
 	buildVaultBytes,
 } from "../vault/build-vault";
+import { createEntriesBlobStore } from "../vault/entries-blob";
 import { createEntryMutations, type VaultEntries } from "../vault/entry-mutations";
 import { entryDataSchema, normalizeEntryData } from "../vault/entry-normalize";
+import { quarantineEntries } from "../vault/quarantine";
 import { decryptEntriesOrRecover } from "../vault/recover-entries";
 import {
 	generateRecoveryCode as makeRecoveryCode,
@@ -596,7 +598,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				"This vault was created by an incompatible version and can't be opened. Its data format has changed.",
 			);
 		}
-		stampsRef.current = new Map(payload.entries.map((e) => [e.id, e.hlc]));
 		tombstonesRef.current = new Map(payload.tombstones.map((t) => [t.id, t.hlc]));
 		settingsRef.current = payload.settings;
 		setSyncedSettings(payload.settings);
@@ -616,13 +617,48 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				dekIv: enc.dekIv,
 			})),
 		);
-		const decrypted: Entry[] = payload.entries.map((enc, i) => {
-			const data = normalizeEntryData(JSON.parse(plaintexts[i] as string));
-			return { id: enc.id, ...data };
+		// Decode everything readable BEFORE any write: a failed open must leave the vault as it was.
+		const readable: EncryptedEntry[] = [];
+		const unreadable: EncryptedEntry[] = [];
+		const decrypted: Entry[] = [];
+		payload.entries.forEach((enc, i) => {
+			const plaintext = plaintexts[i];
+			if (plaintext == null) {
+				unreadable.push(enc);
+				return;
+			}
+			readable.push(enc);
+			decrypted.push({ id: enc.id, ...normalizeEntryData(JSON.parse(plaintext)) });
 		});
+		if (unreadable.length > 0) {
+			// The outer layer opened under this key, so failures are stray entries unless this
+			// device can't decrypt entries at all: a fresh probe tells the two apart.
+			const probe = await crypto.encryptEntry("{}");
+			const [probed] = await crypto.decryptEntries([probe]);
+			if (probed == null) throw new Error("entry decryption is failing on this device");
+			const { readQuarantine, writeQuarantine } = storage;
+			if (!activeId || !readQuarantine || !writeQuarantine) {
+				throw new Error("no quarantine store for this vault");
+			}
+			console.warn(`[vault] setting aside ${unreadable.length} entries this vault can't decrypt`);
+			await quarantineEntries(
+				{
+					storage: { readQuarantine, writeQuarantine },
+					store: createEntriesBlobStore({
+						crypto,
+						storage,
+						readDecodedBlob,
+						verifyVekBeforeWrite: true,
+					}),
+					vaultId: activeId,
+				},
+				unreadable,
+			);
+		}
+		stampsRef.current = new Map(readable.map((e) => [e.id, e.hlc]));
 		setEntries(decrypted);
 		await publishIndex(toAutofillIndex(decrypted), indexLease);
-	}, [readDecodedBlob, crypto, storage, autofill, ensureClock, publishIndex]);
+	}, [readDecodedBlob, crypto, storage, autofill, ensureClock, publishIndex, activeId]);
 
 	// On mount (and when the active vault resolves): detect an existing vault handle and
 	// whether crypto is already unlocked (popup reopened mid-session). Waits for the registry
