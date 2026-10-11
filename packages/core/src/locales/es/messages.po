@@ -508,8 +508,16 @@ msgid "Bramble {version} is available. Updating downloads it and restarts the ap
 msgstr "Bramble {version} está disponible. La actualización lo descarga y reinicia la aplicación. Su caja fuerte no se ve afectada."
 
 #: packages/core/src/hooks/useCryptoErrorMessage.tsx
-msgid "Bramble couldn't open this vault right now. Nothing in it was changed. Please try again."
-msgstr "Bramble no pudo abrir esta bóveda en este momento. No se modificó nada en ella. Inténtelo de nuevo."
+#~ msgid "Bramble couldn't open this vault right now. Nothing in it was changed. Please try again."
+#~ msgstr "Bramble no pudo abrir esta bóveda en este momento. No se modificó nada en ella. Inténtelo de nuevo."
+
+#: packages/core/src/app/components/CryptoErrorText.tsx
+msgid "Bramble couldn't open this vault right now. Please report this error in <0>our issue tracker</0>."
+msgstr "Bramble no ha podido abrir esta bóveda ahora mismo. Informe este error en <0>nuestro gestor de incidencias</0>."
+
+#: packages/core/src/hooks/useCryptoErrorMessage.tsx
+msgid "Bramble couldn't open this vault right now. Please report this error in our issue tracker."
+msgstr "Bramble no ha podido abrir esta bóveda ahora mismo. Informe este error en nuestro gestor de incidencias."
 
 #: packages/core/src/hooks/useCryptoErrorMessage.tsx
 msgid "Bramble couldn't safely update this device's key storage, so the vault stayed locked. Try again."

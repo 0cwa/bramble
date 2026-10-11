@@ -31,9 +31,9 @@ export function useCryptoErrorMessage(): (error: unknown) => string {
 			if (message.startsWith(CRYPTO_PERSISTENCE_FAILED)) {
 				return t`Bramble couldn't safely update this device's key storage, so the vault stayed locked. Try again.`;
 			}
-			// Only unlock throws this, so this copy only ever shows on the unlock screen.
+			// Only unlock throws this. Screens that can render a link use CryptoErrorText instead.
 			if (message.startsWith(VAULT_OPEN_FAILED)) {
-				return t`Bramble couldn't open this vault right now. Nothing in it was changed. Please try again.`;
+				return t`Bramble couldn't open this vault right now. Please report this error in our issue tracker.`;
 			}
 			// Setup and password changes share this hook: keep raw crypto internals off every screen.
 			if (RAW_CRYPTO_ERROR.test(message)) {

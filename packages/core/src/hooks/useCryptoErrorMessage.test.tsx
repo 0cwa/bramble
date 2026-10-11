@@ -17,9 +17,10 @@ const message = (e: unknown) =>
 	renderHook(() => useCryptoErrorMessage(), { wrapper }).result.current(e);
 
 describe("useCryptoErrorMessage", () => {
-	it("explains a vault that didn't open in calm words", () => {
+	// Plain text for screens that can only show a string; CryptoErrorText renders the linked form.
+	it("asks for a report on a vault that didn't open", () => {
 		expect(message(new Error(VAULT_OPEN_FAILED))).toBe(
-			"Bramble couldn't open this vault right now. Nothing in it was changed. Please try again.",
+			"Bramble couldn't open this vault right now. Please report this error in our issue tracker.",
 		);
 	});
 

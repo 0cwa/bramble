@@ -1,6 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { ISSUES_URL } from "../../packages/core/src/app/repo";
 import { expect, test } from "./fixtures";
 import {
 	backgroundWorker,
@@ -166,8 +167,12 @@ test("a vault that won't decrypt can be replaced from its lock screen", async ({
 	await popup.getByRole("button", { name: /Vault 1/ }).click();
 	await popup.locator('input[type="password"]').first().fill(STRONG_PW);
 	await popup.getByRole("button", { name: "Unlock Vault" }).click();
-	// Calm copy, never the raw crypto error.
+	// Calm copy with a way to report it, never the raw crypto error.
 	await expect(popup.getByText(/couldn't open this vault right now/)).toBeVisible();
+	await expect(popup.getByRole("link", { name: "our issue tracker" })).toHaveAttribute(
+		"href",
+		ISSUES_URL,
+	);
 	await expect(popup.getByText(/aead::Error|aes decrypt/)).toHaveCount(0);
 
 	// The recovery, as the user would click it.

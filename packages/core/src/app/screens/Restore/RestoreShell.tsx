@@ -2,7 +2,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { ArchiveRestore, ArrowLeft, Check, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePlatform } from "../../../context/PlatformContext";
-import { useCryptoErrorMessage } from "../../../hooks/useCryptoErrorMessage";
 import { useVault } from "../../../hooks/useVault";
 import { useVaultRegistry } from "../../../hooks/useVaultRegistry";
 import { bytesToBase64 } from "../../../util/bytes";
@@ -12,6 +11,7 @@ import {
 	type PasswordSlot,
 	verifierPrefix,
 } from "../../../vault-format";
+import { CryptoErrorText } from "../../components/CryptoErrorText";
 import { FilePickerRow } from "../../components/FilePickerRow";
 import { Button } from "../../components/ui/button";
 import { PasswordField } from "../../components/ui/password-field";
@@ -74,7 +74,6 @@ export function RestoreShell({
 	const { createRecord } = useVaultRegistry();
 	const { shell, crypto, storage } = usePlatform();
 	const { t } = useLingui();
-	const cryptoError = useCryptoErrorMessage();
 	// Whether a vault already exists here: gates the "this replaces your vault" warning, which is
 	// wrong on a fresh install (nothing to replace, e.g. onboarding restore on mobile).
 	const [hasVault, setHasVault] = useState(false);
@@ -181,8 +180,8 @@ export function RestoreShell({
 				else setDone(true);
 			}
 		} catch (e) {
-			// Never an internal code or raw crypto text: the restored vault may be the damaged one.
-			setError(e instanceof Error ? cryptoError(e) : t`Couldn't restore this backup.`);
+			// Kept raw: CryptoErrorText renders it, so an internal code or raw crypto text never shows.
+			setError(e instanceof Error ? e.message : t`Couldn't restore this backup.`);
 		} finally {
 			setBusy(false);
 		}
@@ -254,7 +253,11 @@ export function RestoreShell({
 							<Trans>Reading file…</Trans>
 						</div>
 					)}
-					{error && <p className="text-sm text-destructive text-center mt-4">{error}</p>}
+					{error && (
+						<p className="text-sm text-destructive text-center mt-4">
+							<CryptoErrorText message={error} />
+						</p>
+					)}
 				</>
 			) : (
 				<form
@@ -300,7 +303,7 @@ export function RestoreShell({
 						value={password}
 						autoFocus
 						onChange={(e) => setPassword(e.target.value)}
-						error={error ?? undefined}
+						error={error ? <CryptoErrorText message={error} /> : undefined}
 					/>
 					<div className="flex items-center justify-between gap-3">
 						<Button
