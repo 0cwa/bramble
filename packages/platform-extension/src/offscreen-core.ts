@@ -326,6 +326,8 @@ type SyncVek = {
 	): boolean;
 	encrypt_entry(plaintextJson: string): EncryptedPayload;
 	decrypt_entry(ciphertext: string, iv: string, wrappedDek: string, dekIv: string): string;
+	/** One VEK section for many entries; a failed entry is null. */
+	decrypt_entries(entries: EncryptedPayload[]): (string | null)[];
 	encrypt_with_vek(plaintext: string): VekEncrypted;
 	decrypt_with_vek(iv: string, ciphertext: string): string;
 };
@@ -376,7 +378,14 @@ async function dispatchCrypto(a: CryptoAdapter, type: string, payload: unknown):
 			const p = CryptoDecryptBatchSchema.parse(payload);
 			const w = (await getWasm()) as unknown as SyncVek;
 			return withVek(w, p.vekB64, (w) =>
-				p.entries.map((e) => w.decrypt_entry(e.ciphertext, e.iv, e.wrappedDek, e.dekIv)),
+				w.decrypt_entries(
+					p.entries.map(({ ciphertext, iv, wrappedDek, dekIv }) => ({
+						ciphertext,
+						iv,
+						wrappedDek,
+						dekIv,
+					})),
+				),
 			);
 		}
 		case "CRYPTO_DECRYPT_INDEX": {
