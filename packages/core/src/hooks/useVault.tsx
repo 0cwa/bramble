@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { IndexEntry, SubdomainMatchMode } from "../adapters/autofill";
 import type { BiometryType } from "../adapters/biometric";
+import { VAULT_OPEN_FAILED } from "../adapters/crypto";
 import { usePlatform } from "../context/PlatformContext";
 import {
 	decodeVaultBlob,
@@ -660,6 +661,21 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		await publishIndex(toAutofillIndex(decrypted), indexLease);
 	}, [readDecodedBlob, crypto, storage, autofill, ensureClock, publishIndex, activeId]);
 
+	// After a successful unwrap: load, or lock again so nothing syncs a vault that didn't open.
+	const openUnlocked = useCallback(
+		async (vaultId: string | null) => {
+			try {
+				await loadEntries();
+			} catch (e) {
+				console.error("[vault] vault failed to open after unlock:", e);
+				await crypto.lock().catch(() => {});
+				throw new Error(VAULT_OPEN_FAILED);
+			}
+			if (vaultId) void shell.notifyVaultOpened?.(vaultId);
+		},
+		[loadEntries, crypto, shell],
+	);
+
 	// On mount (and when the active vault resolves): detect an existing vault handle and
 	// whether crypto is already unlocked (popup reopened mid-session). Waits for the registry
 	// so `storage` is bound to the active vault before the first detect.
@@ -692,6 +708,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
 				try {
 					await loadEntries();
+					if (activeId) void shell.notifyVaultOpened?.(activeId);
 				} catch (e) {
 					// Reading the vault failed while unlocked (commonly an FSA file whose
 					// read permission needs a gesture on popup reopen). Fall back to the
@@ -721,6 +738,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		refreshSlotMetadata,
 		vaults.length,
 		refreshRegistry,
+		activeId,
 	]);
 
 	// Record which vault is unlocked so the background can target it for sync and a reopened popup
@@ -802,12 +820,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				magicVersion: verifierPrefix(),
 			});
 			if (!ok) throw new Error(t`Incorrect master password`);
-			await loadEntries();
+			await openUnlocked(target);
 			setIsLocked(false);
 			// Commit any corner-prompt capture parked while locked, now that the VEK is live.
 			void shell.flushPendingCornerCapture().catch(() => {});
 		},
-		[readDecodedBlob, crypto, loadEntries, shell, activeId, t],
+		[readDecodedBlob, crypto, openUnlocked, shell, activeId, t],
 	);
 
 	/** Lock the vault: clear the VEK, autofill index, and decrypted state. */
@@ -850,11 +868,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				magicVersion: verifierPrefix(),
 			});
 			if (!ok) throw new Error(t`Security-key unlock failed (verifier mismatch).`);
-			await loadEntries();
+			await openUnlocked(activeId ?? null);
 			setIsLocked(false);
 			void shell.flushPendingCornerCapture().catch(() => {});
 		},
-		[crypto, loadEntries, shell, activeId, t],
+		[crypto, openUnlocked, shell, activeId, t],
 	);
 
 	/** Unlock via a registered security key (one tap, two if the salt mismatches). */
@@ -1382,11 +1400,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				}
 			}
 			if (!opened) throw new Error(t`Incorrect recovery code`);
-			await loadEntries();
+			await openUnlocked(activeId ?? null);
 			setIsLocked(false);
 			void shell.flushPendingCornerCapture().catch(() => {});
 		},
-		[readDecodedBlob, crypto, loadEntries, shell, activeId, t],
+		[readDecodedBlob, crypto, openUnlocked, shell, activeId, t],
 	);
 
 	// Re-probe the gate's availability + enabled state. Called on mount and whenever the
@@ -1464,6 +1482,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				loadEntries,
 				onStaleCache: () => setBiometricEnabled(false),
 			});
+			void shell.notifyVaultOpened?.(activeId);
 			setIsLocked(false);
 			void shell.flushPendingCornerCapture().catch(() => {});
 		},

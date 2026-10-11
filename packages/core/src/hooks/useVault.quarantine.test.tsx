@@ -1,6 +1,7 @@
 /** @vitest-environment happy-dom */
 import { cleanup, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { VAULT_OPEN_FAILED } from "../adapters/crypto";
 import type { Platform } from "../context/PlatformContext";
 import { mountVault } from "../test/vault-harness";
 import { VAULT_REGISTRY_KEY } from "../vault/vault-registry";
@@ -130,7 +131,7 @@ it("changes nothing when this device can't decrypt entries at all", async () => 
 		decryptEntries: decryptBy({}, true),
 	});
 	const { actions } = await mounted(platform);
-	await expect(actions().unlock("pw")).rejects.toThrow();
+	await expect(actions().unlock("pw")).rejects.toThrow(VAULT_OPEN_FAILED);
 	expect(writes).toHaveLength(0);
 	expect(quarantined()).toEqual([]);
 });
@@ -140,7 +141,33 @@ it("changes nothing when a readable entry fails to parse", async () => {
 		decryptEntries: decryptBy({ bad: "{not json" }),
 	});
 	const { actions } = await mounted(platform);
-	await expect(actions().unlock("pw")).rejects.toThrow();
+	await expect(actions().unlock("pw")).rejects.toThrow(VAULT_OPEN_FAILED);
 	expect(writes).toHaveLength(0);
 	expect(quarantined()).toEqual([]);
+});
+
+it("locks again when the vault fails to open, and reports only a vault that opened", async () => {
+	const lock = vi.fn(async () => {});
+	const notifyVaultOpened = vi.fn();
+	const { platform } = makePlatform(
+		["mine"],
+		{ decryptEntries: decryptBy({}, true), lock },
+		{ notifyVaultOpened },
+	);
+	const { actions } = await mounted(platform);
+	await expect(actions().unlock("pw")).rejects.toThrow(VAULT_OPEN_FAILED);
+	expect(lock).toHaveBeenCalled();
+	expect(notifyVaultOpened).not.toHaveBeenCalled();
+});
+
+it("reports the vault that opened, by id", async () => {
+	const notifyVaultOpened = vi.fn();
+	const { platform } = makePlatform(
+		["mine"],
+		{ decryptEntries: decryptBy({ mine: '{"type":"login","name":"Mine"}' }) },
+		{ notifyVaultOpened },
+	);
+	const { actions } = await mounted(platform);
+	await actions().unlock("pw");
+	await waitFor(() => expect(notifyVaultOpened).toHaveBeenCalledWith(VAULT_ID));
 });

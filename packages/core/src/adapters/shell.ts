@@ -243,6 +243,8 @@ export interface ShellAdapter {
 	 * background sees it before it kicks off sync on unlock. Optional: single-context hosts (mobile)
 	 * read the active vault directly and can omit it. See docs/multiple-vaults.md (Sync). */
 	setActiveVault?(vaultId: string | null): void | Promise<void>;
+	/** This vault's entries loaded after an unlock. Hosts start sync here, not at unwrap. */
+	notifyVaultOpened?(vaultId: string): void | Promise<void>;
 	/** Read back the active/unlocked vault id (whatever setActiveVault stored), so a reopened UI
 	 * can restore the unlocked vault and skip the picker. Optional; mobile omits it (it locks on
 	 * background, so a reopen is always locked). See docs/multiple-vaults.md (Sync). */

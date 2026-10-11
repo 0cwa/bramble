@@ -94,7 +94,7 @@ describe("maybeStartSync (per-vault)", () => {
 				"sync.group:b": { groupKey: "GROUP_B", roster: roster("b") },
 				"sync.deviceKeypair:b": { privateKey: "bpriv", publicKey: "bpub" },
 			},
-			{ [ACTIVE_VAULT_SESSION_KEY]: "b" },
+			{ [ACTIVE_VAULT_SESSION_KEY]: "b", "sync.openedVault": "b" },
 		);
 		const { maybeStartSync } = await loadSync();
 		await maybeStartSync();
@@ -115,7 +115,7 @@ describe("maybeStartSync (per-vault)", () => {
 				"sync.group": { groupKey: "GROUP_A", roster: roster("a") },
 				"sync.deviceKeypair": { privateKey: "apriv", publicKey: "apub" },
 			},
-			{ [ACTIVE_VAULT_SESSION_KEY]: "b" },
+			{ [ACTIVE_VAULT_SESSION_KEY]: "b", "sync.openedVault": "b" },
 		);
 		const { maybeStartSync } = await loadSync();
 		await maybeStartSync();
@@ -131,7 +131,7 @@ describe("maybeStartSync (per-vault)", () => {
 				"sync.group:b": { groupKey: "GROUP_B", roster: roster("b") },
 				"sync.deviceKeypair:b": { privateKey: "bpriv", publicKey: "bpub" },
 			},
-			{ [ACTIVE_VAULT_SESSION_KEY]: "b" },
+			{ [ACTIVE_VAULT_SESSION_KEY]: "b", "sync.openedVault": "b" },
 		);
 		const chrome = globalThis.chrome as any;
 		const originalGet = chrome.storage.local.get;

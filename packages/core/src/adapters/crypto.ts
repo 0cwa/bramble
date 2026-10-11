@@ -116,6 +116,8 @@ export interface SaveKdbxInput {
  */
 export const CRYPTO_SESSION_CHANGED = "vek_session_changed";
 export const CRYPTO_PERSISTENCE_FAILED = "vek_persistence_failed";
+/** A vault's key unwrapped but its entries did not load; the vault was locked again. */
+export const VAULT_OPEN_FAILED = "VAULT_OPEN_FAILED";
 
 /** Vault crypto operations (VEK lifecycle, slot wrap/unwrap, entry encryption, KeePass import). */
 export interface CryptoAdapter {

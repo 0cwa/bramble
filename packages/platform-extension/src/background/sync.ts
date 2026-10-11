@@ -21,6 +21,7 @@ import {
 import { syncKeyFor } from "@core/sync/sync-keys";
 import { encodeVaultBlob, type VaultBlob } from "@core/vault-format";
 import { api } from "../platform-api";
+import { OPENED_VAULT_KEY } from "../session-keys";
 import { extensionStorage } from "../storage";
 import {
 	AdmissionPubkeyMsgSchema,
@@ -272,6 +273,8 @@ export async function maybeStartSync(expectedVekEpoch?: number): Promise<void> {
 	}
 	const ctx = await resolveSyncVault();
 	if (!ctx) return; // this vault simply isn't enrolled; not a failure
+	const opened = (await api.storage.session.get(OPENED_VAULT_KEY))[OPENED_VAULT_KEY];
+	if (opened !== ctx.vaultId) return; // not loaded since unlock: never sync a vault that may not open
 	if (sessionMoved()) {
 		abandonStart("resolving the vault", startEpoch, vekEpoch);
 		return;
