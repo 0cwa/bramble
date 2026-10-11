@@ -11,7 +11,7 @@ import { sendToOffscreen } from "./offscreen-client";
 import { closeUnlockPopout, POPOUT_HANDOFF_KEY } from "./popout";
 import { getAutoLockMinutes } from "./prefs";
 import { extensionOnly, type MessageEnvelope, on, onBeforeDispatch, onPrefix } from "./router";
-import { maybeStartSync, stopSync } from "./sync";
+import { maybeStartSync, retargetSync, stopSync } from "./sync";
 import * as vekStore from "./vek-store";
 
 const LEGACY_AUTOFILL_INDEX_KEY = "autofill.index";
@@ -114,6 +114,7 @@ function advanceAutofillSession(): void {
 function applyActiveVaultTransition(value: unknown): boolean {
 	if (!vekStore.applyActiveVaultId(value)) return false;
 	advanceAutofillSession();
+	retargetSync(vekStore.getActiveVaultId());
 	return true;
 }
 
