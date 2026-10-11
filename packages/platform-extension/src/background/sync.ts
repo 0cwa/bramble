@@ -397,6 +397,22 @@ function makeVaultSyncPort(ctx: SyncVaultCtx): VaultSyncPort {
 			await writeVault(newBlob, ctx.vaultId);
 			await broadcastVaultChanged();
 		},
+		async openable(entries) {
+			const res = await sendToOffscreen({
+				type: "CRYPTO_CHECK_ENTRIES",
+				vaultId: ctx.vaultId,
+				payload: {
+					entries: entries.map(({ ciphertext, iv, wrappedDek, dekIv }) => ({
+						ciphertext,
+						iv,
+						wrappedDek,
+						dekIv,
+					})),
+				},
+			});
+			if (!res.ok || !Array.isArray(res.data)) throw new Error(res.error ?? "entry check failed");
+			return res.data as boolean[];
+		},
 	};
 }
 
@@ -425,6 +441,8 @@ let lastSyncStampAt = 0;
 
 /** One merge at a time per vault: the relay and desktop-link sessions both feed this. */
 const applyChains = new Map<string, Promise<unknown>>();
+/** Entry versions a vault refused at merge, so a peer's rebroadcast isn't re-checked every tick. */
+const refusedByVault = new Map<string, Set<string>>();
 
 /** A peer's payload arrived: merge into the pinned vault. Returns whether it changed. */
 export async function syncApplyRemote(vaultId: string, payloadJson: string): Promise<boolean> {
@@ -442,7 +460,9 @@ async function applyRemoteNow(vaultId: string, payloadJson: string): Promise<boo
 	const ctx = await pinnedCtx(vaultId);
 	if (!ctx) return false;
 	const remote = decodeEntriesPayload(payloadJson);
-	const { changed } = await applyRemotePayload(makeVaultSyncPort(ctx), remote);
+	const rejected = refusedByVault.get(ctx.vaultId) ?? new Set<string>();
+	refusedByVault.set(ctx.vaultId, rejected);
+	const { changed } = await applyRemotePayload(makeVaultSyncPort(ctx), remote, { rejected });
 	// Every reconcile (changed or no-op) means "we're up to date with a peer". Peers rebroadcast
 	// every few seconds, so throttle the stamp to ~30s to avoid churn (each write wakes the Sync
 	// UI via storage.onChanged). The UI live-reads this via subscribeMeta. Per-vault so each vault's

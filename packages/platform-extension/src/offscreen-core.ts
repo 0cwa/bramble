@@ -388,6 +388,23 @@ async function dispatchCrypto(a: CryptoAdapter, type: string, payload: unknown):
 				),
 			);
 		}
+		case "CRYPTO_CHECK_ENTRIES": {
+			// Verdicts only: plaintext never leaves this document for an admission check.
+			const p = CryptoDecryptBatchSchema.parse(payload);
+			const w = (await getWasm()) as unknown as SyncVek;
+			return withVek(w, p.vekB64, (w) =>
+				w
+					.decrypt_entries(
+						p.entries.map(({ ciphertext, iv, wrappedDek, dekIv }) => ({
+							ciphertext,
+							iv,
+							wrappedDek,
+							dekIv,
+						})),
+					)
+					.map((pt) => pt != null),
+			);
+		}
 		case "CRYPTO_DECRYPT_INDEX": {
 			const p = CryptoDecryptIndexSchema.parse(payload);
 			const w = (await getWasm()) as unknown as SyncVek;

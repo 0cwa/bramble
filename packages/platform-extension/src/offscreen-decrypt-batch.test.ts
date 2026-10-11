@@ -79,3 +79,15 @@ describe("offscreen CRYPTO_DECRYPT_INDEX", () => {
 		);
 	});
 });
+
+describe("offscreen CRYPTO_CHECK_ENTRIES", () => {
+	it("answers whether each entry decrypts, without returning any plaintext", async () => {
+		loads.length = 0;
+		const res = await handleHostMessage("CRYPTO_CHECK_ENTRIES", {
+			entries: [entry("a"), entry("broken")],
+			vekB64: "vek",
+		});
+		expect(res).toEqual({ ok: true, data: [true, false] });
+		expect(loads).toEqual(["vek"]);
+	});
+});

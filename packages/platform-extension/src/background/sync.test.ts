@@ -272,6 +272,55 @@ describe("sync is pinned to one vault", () => {
 		]);
 	});
 
+	it("does not merge a peer's entry that doesn't decrypt in this vault", async () => {
+		const blob = encodeVaultBlob({
+			slots: [
+				{
+					kind: SLOT_KIND_PASSWORD,
+					slotId: new Uint8Array(16),
+					salt: new Uint8Array(16),
+					verifier: new Uint8Array(32),
+					wrapIv: new Uint8Array(12),
+					wrappedVek: new Uint8Array(48),
+				},
+			],
+			entriesIv: new Uint8Array(12),
+			entriesCiphertext: new Uint8Array([1]),
+		});
+		stubChrome(
+			{ ...seedTwoVaults(), "vault-blob-b64:a": btoa(String.fromCharCode(...blob)) },
+			{ [ACTIVE_VAULT_SESSION_KEY]: "a" },
+		);
+		sendToOffscreen.mockImplementation(async (m) => {
+			if (m.type === "CRYPTO_DECRYPT_OUTER") {
+				return { ok: true, data: JSON.stringify(emptyEntriesPayload()) } as never;
+			}
+			if (m.type === "CRYPTO_CHECK_ENTRIES") {
+				return {
+					ok: true,
+					data: ((m.payload?.entries ?? []) as unknown[]).map(() => false),
+				} as never;
+			}
+			return { ok: true };
+		});
+		const sync = await loadSync();
+		const stray = JSON.stringify({
+			entries: [
+				{
+					id: "stray",
+					wrappedDek: "w",
+					dekIv: "d",
+					ciphertext: "c",
+					iv: "i",
+					hlc: { wall: 1, counter: 0, node: "p" },
+				},
+			],
+			tombstones: [],
+		});
+		expect(await sync.syncApplyRemote("a", stray)).toBe(false);
+		expect(types()).not.toContain("CRYPTO_ENCRYPT_OUTER");
+	});
+
 	it("does not sync when no vault is active", async () => {
 		stubChrome(seedTwoVaults(), {});
 		const sync = await loadSync();
