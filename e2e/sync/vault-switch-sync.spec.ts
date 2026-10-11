@@ -1,5 +1,6 @@
 import type { Page, Worker } from "@playwright/test";
 import {
+	addLogin,
 	backgroundWorker,
 	createVault as createAnotherVault,
 	lockToPicker,
@@ -65,23 +66,6 @@ async function pair(ext: Peer & { extensionId: string }, mobile: Peer): Promise<
 	});
 }
 
-/** Add a login through the real create-entry UI. */
-async function addLogin(page: Page, name: string): Promise<void> {
-	await page.getByRole("button", { name: /Add New/i }).click();
-	await page
-		.getByRole("button", { name: /^Login/ })
-		.first()
-		.click();
-	await page.getByLabel(/^Name$/).fill(name);
-	await page.getByLabel(/Username or email/i).fill("octocat@example.com");
-	await page
-		.getByLabel(/^Password$/)
-		.first()
-		.fill("hunter2-c0rrect-h0rse");
-	await page.getByRole("button", { name: /Save Login/i }).click();
-	await expect(page.getByText(name)).toBeVisible();
-}
-
 /** Leave whichever screen the popup restored, for the vault list. */
 async function showVaultList(page: Page): Promise<void> {
 	await page.getByRole("button", { name: "Go to vault" }).click();
@@ -123,10 +107,36 @@ async function changesWithin(
 	return false;
 }
 
+/** Give `other` its own sync group listing the same devices as `synced`'s. */
+async function shareDevices(sw: Worker, synced: string, other: string): Promise<void> {
+	await sw.evaluate(
+		async ({ synced, other }) => {
+			const group = (await chrome.storage.local.get(`sync.group:${synced}`))[
+				`sync.group:${synced}`
+			];
+			const key = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+			await chrome.storage.local.set({ [`sync.group:${other}`]: { ...group, groupKey: key } });
+		},
+		{ synced, other },
+	);
+}
+
 test("a peer of the synced vault never writes into a vault opened alongside it", async ({
 	ext,
 	mobile,
 }) => {
+	await openAlongside(ext, mobile, { sharedDevices: false });
+});
+
+test("...even when that vault's sync group lists the same devices", async ({ ext, mobile }) => {
+	await openAlongside(ext, mobile, { sharedDevices: true });
+});
+
+async function openAlongside(
+	ext: Peer & { extensionId: string },
+	mobile: Peer,
+	{ sharedDevices }: { sharedDevices: boolean },
+): Promise<void> {
 	await pair(ext, mobile);
 	const sw = await backgroundWorker(ext.context);
 	const stamp = Date.now().toString(36);
@@ -140,7 +150,8 @@ test("a peer of the synced vault never writes into a vault opened alongside it",
 	// A second vault becomes active while the synced one stays unlocked, as Settings' desktop link does.
 	const setup = await ext.context.newPage();
 	await createAnotherVault(setup, ext.extensionId);
-	const { other } = await vaultIds(sw);
+	const { synced, other } = await vaultIds(sw);
+	if (sharedDevices) await shareDevices(sw, synced, other);
 	const otherBefore = await readBlob(sw, other);
 
 	const afterSwitch = `After switch ${stamp}`;
@@ -175,4 +186,4 @@ test("a peer of the synced vault never writes into a vault opened alongside it",
 	await selectVault(popup, /Vault 1/);
 	await showVaultList(popup);
 	await expect(popup.getByText(afterSwitch)).toBeVisible({ timeout: 90_000 });
-});
+}

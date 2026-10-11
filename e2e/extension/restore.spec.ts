@@ -123,7 +123,7 @@ test("the Add-a-vault screen offers restoring a backup", async ({ context, exten
 	await expect(page.locator('input[type="file"]')).toBeAttached();
 });
 
-// The way back for a user stuck on "aes decrypt: aead::Error": from the lock screen, restore a
+// The way back for a user whose vault won't decrypt at all: from the lock screen, restore a
 // healthy device's backup as a new vault and open that one instead.
 test("a vault that won't decrypt can be replaced from its lock screen", async ({
 	context,
@@ -166,7 +166,9 @@ test("a vault that won't decrypt can be replaced from its lock screen", async ({
 	await popup.getByRole("button", { name: /Vault 1/ }).click();
 	await popup.locator('input[type="password"]').first().fill(STRONG_PW);
 	await popup.getByRole("button", { name: "Unlock Vault" }).click();
-	await expect(popup.getByText(/aes decrypt: aead::Error/)).toBeVisible();
+	// Calm copy, never the raw crypto error.
+	await expect(popup.getByText(/couldn't open this vault right now/)).toBeVisible();
+	await expect(popup.getByText(/aead::Error|aes decrypt/)).toHaveCount(0);
 
 	// The recovery, as the user would click it.
 	await popup.getByRole("button", { name: /Choose a different vault/i }).click();
