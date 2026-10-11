@@ -508,6 +508,10 @@ msgid "Bramble {version} is available. Updating downloads it and restarts the ap
 msgstr "Bramble {version} est disponible. La mise à jour la télécharge et redémarre l’application. Votre coffre-fort reste inchangé."
 
 #: packages/core/src/hooks/useCryptoErrorMessage.tsx
+msgid "Bramble couldn't open this vault right now. Nothing in it was changed. Please try again."
+msgstr "Bramble n'a pas pu ouvrir ce coffre-fort pour le moment. Rien n'y a été modifié. Veuillez réessayer."
+
+#: packages/core/src/hooks/useCryptoErrorMessage.tsx
 msgid "Bramble couldn't safely update this device's key storage, so the vault stayed locked. Try again."
 msgstr "Bramble n'a pas pu mettre à jour en toute sécurité le stockage des clés de cet appareil, le coffre-fort est donc resté verrouillé. Réessayez."
 
@@ -2931,6 +2935,10 @@ msgstr "Smiley"
 #: packages/core/src/app/ErrorBoundary.tsx
 msgid "Something went wrong"
 msgstr "Une erreur est survenue"
+
+#: packages/core/src/hooks/useCryptoErrorMessage.tsx
+msgid "Something went wrong. Please try again."
+msgstr "Une erreur s'est produite. Veuillez réessayer."
 
 #: packages/core/src/app/screens/VaultHome/VaultSearchBar.tsx
 msgid "Sort"
