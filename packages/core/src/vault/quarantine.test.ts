@@ -102,14 +102,29 @@ describe("quarantineEntries", () => {
 		expect(f.kept()).toHaveLength(1);
 	});
 
-	it("refuses to overwrite a quarantine it can't read", async () => {
-		const f = fakes({ entries: [env("stray")], tombstones: [] });
-		f.setRaw("{not json");
-		await expect(
-			quarantineEntries({ storage: f.storage, store: f.store, vaultId: "v", now: 1 }, [
+	it.each(["{not json", '{"an":"object"}'])(
+		"keeps a store it can't read (%s) inside the new one, and still opens",
+		async (raw) => {
+			const f = fakes({ entries: [env("stray")], tombstones: [] });
+			f.setRaw(raw);
+			await quarantineEntries({ storage: f.storage, store: f.store, vaultId: "v", now: 5 }, [
 				env("stray"),
-			]),
-		).rejects.toThrow();
-		expect(f.disk().entries).toHaveLength(1);
+			]);
+			expect(f.disk().entries).toEqual([]);
+			expect(f.kept()).toEqual([
+				{ unreadableStore: raw, quarantinedAt: 5 },
+				{ ...env("stray"), quarantinedAt: 5 },
+			]);
+		},
+	);
+
+	it("carries records it doesn't recognise forward untouched", async () => {
+		const f = fakes({ entries: [env("stray")], tombstones: [] });
+		f.setRaw('[1,"x",null]');
+		await quarantineEntries({ storage: f.storage, store: f.store, vaultId: "v", now: 5 }, [
+			env("stray"),
+		]);
+		expect(f.disk().entries).toEqual([]);
+		expect(f.kept()).toEqual([1, "x", null, { ...env("stray"), quarantinedAt: 5 }]);
 	});
 });

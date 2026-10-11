@@ -48,13 +48,14 @@ function makePlatform(
 	entryIds: string[],
 	cryptoOver: Record<string, unknown>,
 	shellOver: Record<string, unknown> = {},
+	{ otherVaults = [] as string[], diskJson }: { otherVaults?: string[]; diskJson?: string } = {},
 ) {
-	const meta = new Map<string, unknown>([
-		[VAULT_REGISTRY_KEY, { vaults: [{ id: VAULT_ID, label: "", createdAt: 1 }] }],
-	]);
+	const vaults = [VAULT_ID, ...otherVaults].map((id, i) => ({ id, label: "", createdAt: i + 1 }));
+	const meta = new Map<string, unknown>([[VAULT_REGISTRY_KEY, { vaults }]]);
+	const quarantineIds: (string | undefined)[] = [];
 	const writes: Uint8Array[] = [];
 	let quarantine: string | null = null;
-	let disk = JSON.stringify({ entries: entryIds.map(sealed), tombstones: [] });
+	let disk = diskJson ?? JSON.stringify({ entries: entryIds.map(sealed), tombstones: [] });
 	const platform = {
 		target: "chromium",
 		storage: {
@@ -66,7 +67,8 @@ function makePlatform(
 			writeVaultBlob: async (b: Uint8Array) => void writes.push(b),
 			restoreVaultFromBackup: async () => false,
 			readQuarantine: async () => quarantine,
-			writeQuarantine: async (json: string) => {
+			writeQuarantine: async (json: string, id?: string) => {
+				quarantineIds.push(id);
 				quarantine = json;
 			},
 		},
@@ -97,6 +99,7 @@ function makePlatform(
 		platform,
 		writes,
 		quarantined: () => (quarantine === null ? [] : (JSON.parse(quarantine) as unknown[])),
+		quarantineIds,
 	};
 }
 
@@ -170,4 +173,33 @@ it("reports the vault that opened, by id", async () => {
 	const { actions } = await mounted(platform);
 	await actions().unlock("pw");
 	await waitFor(() => expect(notifyVaultOpened).toHaveBeenCalledWith(VAULT_ID));
+});
+
+// The restore screen's first-vault path unlocks a vault it only just created, from a closure that
+// has no active vault yet: the quarantine must go to the vault the unlock names.
+it("sets stray entries aside for the vault an unlock names, before any vault is selected", async () => {
+	const { platform, quarantined, quarantineIds } = makePlatform(
+		["mine", "stray"],
+		{ decryptEntries: decryptBy({ mine: '{"type":"login","name":"Mine"}' }) },
+		{},
+		{ otherVaults: ["vault-2"] },
+	);
+	const { actions, state } = await mounted(platform);
+	await actions().unlock("pw", VAULT_ID);
+	await waitFor(() => expect(state().isLocked).toBe(false));
+	expect(quarantined()).toHaveLength(1);
+	expect(quarantineIds).toEqual([VAULT_ID]);
+});
+
+it("keeps a permanent, user-facing reason instead of 'try again'", async () => {
+	const lock = vi.fn(async () => {});
+	const { platform } = makePlatform(
+		[],
+		{ decryptEntries: decryptBy({}), lock },
+		{},
+		{ diskJson: '{"not":"an entries payload"}' },
+	);
+	const { actions } = await mounted(platform);
+	await expect(actions().unlock("pw")).rejects.toThrow(/incompatible version/);
+	expect(lock).toHaveBeenCalled();
 });

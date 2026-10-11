@@ -1,4 +1,4 @@
-import { decodeRoster, emptyEntriesPayload } from "@core/sync";
+import { decodeRoster, emptyEntriesPayload, encodeRoster } from "@core/sync";
 import {
 	addVault,
 	EMPTY_REGISTRY,
@@ -319,6 +319,26 @@ describe("sync is pinned to one vault", () => {
 		});
 		expect(await sync.syncApplyRemote("a", stray)).toBe(false);
 		expect(types()).not.toContain("CRYPTO_ENCRYPT_OUTER");
+	});
+
+	// The one cross-vault leak the merge's admission check can't stop: device lists.
+	it("a stale session's roster gossip never touches either vault's device list", async () => {
+		stubChrome(seedTwoVaults(), { [ACTIVE_VAULT_SESSION_KEY]: "b" });
+		await loadSync();
+		const { on } = await import("./router");
+		const applyRoster = vi
+			.mocked(on)
+			.mock.calls.find(([type]) => type === "SYNC_APPLY_ROSTER")?.[1] as
+			| ((message: unknown) => Promise<unknown>)
+			| undefined;
+		const groups = () => chrome.storage.local.get(["sync.group:a", "sync.group:b"]);
+		const before = JSON.stringify(await groups());
+		await applyRoster?.({
+			type: "SYNC_APPLY_ROSTER",
+			payload: { vaultId: "a", rosterJson: encodeRoster(roster("intruder")) },
+		});
+		expect(applyRoster).toBeDefined();
+		expect(JSON.stringify(await groups())).toBe(before);
 	});
 
 	it("does not sync when no vault is active", async () => {

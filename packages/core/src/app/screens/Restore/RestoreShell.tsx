@@ -2,6 +2,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { ArchiveRestore, ArrowLeft, Check, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePlatform } from "../../../context/PlatformContext";
+import { useCryptoErrorMessage } from "../../../hooks/useCryptoErrorMessage";
 import { useVault } from "../../../hooks/useVault";
 import { useVaultRegistry } from "../../../hooks/useVaultRegistry";
 import { bytesToBase64 } from "../../../util/bytes";
@@ -73,6 +74,7 @@ export function RestoreShell({
 	const { createRecord } = useVaultRegistry();
 	const { shell, crypto, storage } = usePlatform();
 	const { t } = useLingui();
+	const cryptoError = useCryptoErrorMessage();
 	// Whether a vault already exists here: gates the "this replaces your vault" warning, which is
 	// wrong on a fresh install (nothing to replace, e.g. onboarding restore on mobile).
 	const [hasVault, setHasVault] = useState(false);
@@ -179,7 +181,8 @@ export function RestoreShell({
 				else setDone(true);
 			}
 		} catch (e) {
-			setError(e instanceof Error ? e.message : t`Couldn't restore this backup.`);
+			// Never an internal code or raw crypto text: the restored vault may be the damaged one.
+			setError(e instanceof Error ? cryptoError(e) : t`Couldn't restore this backup.`);
 		} finally {
 			setBusy(false);
 		}
