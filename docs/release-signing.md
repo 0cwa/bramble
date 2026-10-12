@@ -658,7 +658,7 @@ pnpm run release desktop 0.9.0                  # from GitHub: dispatch, approve
 pnpm run release desktop 0.9.0 --dry-run       # everything short of publishing, Windows excepted
 pnpm run release desktop 0.9.0 --skip=windows  # cut the release without a platform (or several)
 pnpm run release desktop 0.9.0 --local         # from this Mac: every build here, a touch for the key
-pnpm run publish:apt --release 0.9.0-desktop   # the APT repository, still from a Mac (below)
+gh workflow run apt-release.yml -f release=0.9.0-desktop  # re-run the APT step on its own (below)
 ```
 
 **From GitHub**, the default route, through `.github/workflows/desktop-release.yml`. One release
@@ -702,10 +702,11 @@ missing and the `--skip=windows` command to run instead, rather than an hour lat
 `sign-windows.yml` has nothing to sign with. The bump job checks the same thing on the runner, for a
 release dispatched from the Actions tab rather than from here.
 
-**The APT repository is the one step still on a Mac.** Its signing key was generated on the
-YubiKey's OpenPGP applet and cannot leave it, so after a GitHub release,
-`pnpm run publish:apt --release <tag>` downloads that release's `.deb`s and signs and publishes the
-index (two touches). Until it runs, Debian and Ubuntu users do not see the release.
+**The APT repository follows in its own job.** Once the release is published, `desktop-release.yml`
+calls `apt-release.yml`, which waits for its own approval in `apt-release`, then signs the index
+with the standby key and publishes it. A failure there leaves the release complete; re-run it with
+`gh workflow run apt-release.yml -f release=<tag>`. Until it runs, Debian and Ubuntu users do not
+see the release.
 
 **From this Mac** (`--local`), the fallback: every build here, the Linux one in containers, Windows
 still through GitHub and SignPath, and APT publishing at the end, all as before.
@@ -946,7 +947,9 @@ gpg --delete-secret-keys "$FPR"
 Then commit the keyring and ship a release. Switching to it later is one variable and no user
 action: the ordered procedure is in
 [apt-releases.md](apt-releases.md#the-keyring-and-how-a-key-is-rotated). aptly takes the passphrase
-with `-passphrase-file`, which is what the CI publisher will use.
+with `-passphrase-file`, which is what `apt-release.yml` does: the armored private key and its
+passphrase are `APT_GPG_PRIVATE_KEY` and `APT_GPG_PASSPHRASE` in the `apt-release` environment, and
+`publish-apt.ts` imports them into a gpg home that lasts one run.
 
 ### Hosting
 
