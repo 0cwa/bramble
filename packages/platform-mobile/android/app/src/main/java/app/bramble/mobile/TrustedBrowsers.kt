@@ -5,7 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import androidx.annotation.RequiresApi
 import java.security.MessageDigest
+import java.util.Base64
 
 // A curated allow-list of browsers we trust to vouch for a web page's origin. An autofill
 // request's `webDomain` is attacker-controllable (any app can set it on a virtual view
@@ -62,17 +64,17 @@ object TrustedBrowsers {
     )
 
     /** A browser of any kind (allow-listed, or a caller that can VIEW arbitrary web
-     * pages, the ROLE_BROWSER filter shape): a package association would make every page
-     * in such a caller match. */
+     * pages, like ROLE_BROWSER's VIEW + BROWSABLE check): a package association would make
+     * every page in such a caller match. Errs toward "browser", which only costs the prompt. */
     fun isBrowserApp(context: Context, packageName: String?): Boolean {
         val pkg = packageName ?: return false
         if (BROWSERS.containsKey(pkg)) return true
         return try {
-            listOf("http", "https").all { scheme ->
+            listOf("http", "https").any { scheme ->
                 val probe = Intent(Intent.ACTION_VIEW, Uri.parse("$scheme://bramble.invalid/"))
                     .addCategory(Intent.CATEGORY_BROWSABLE)
-                    .addCategory(Intent.CATEGORY_DEFAULT)
-                context.packageManager.queryIntentActivities(probe, 0)
+                // MATCH_ALL: without it a web-intent query keeps only the default browser.
+                context.packageManager.queryIntentActivities(probe, PackageManager.MATCH_ALL)
                     .any { it.activityInfo?.packageName == pkg }
             }
         } catch (e: Exception) {
@@ -112,50 +114,10 @@ object TrustedBrowsers {
 
     /** The hash `android://<hash>@<package>` pins carry (Google Password Manager /
      * Chrome app ids): base64url, padded, of the signing certificate's SHA-512, per
-     * Chromium's affiliation_utils.h. */
+     * Chromium's affiliation_utils.h. java.util.Base64 is API 26, as is every caller. */
+    @RequiresApi(Build.VERSION_CODES.O)
     internal fun facetCertHash(der: ByteArray): String =
-        base64Url(MessageDigest.getInstance("SHA-512").digest(der))
-
-    private const val B64URL =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-
-    // Hand-rolled, not android.util.Base64, so host-JVM unit tests can exercise it.
-    internal fun base64Url(bytes: ByteArray): String {
-        val out = StringBuilder((bytes.size + 2) / 3 * 4)
-        var i = 0
-        while (i + 3 <= bytes.size) {
-            val n =
-                ((bytes[i].toInt() and 0xFF) shl 16) or
-                    ((bytes[i + 1].toInt() and 0xFF) shl 8) or
-                    (bytes[i + 2].toInt() and 0xFF)
-            out
-                .append(B64URL[(n ushr 18) and 0x3F])
-                .append(B64URL[(n ushr 12) and 0x3F])
-                .append(B64URL[(n ushr 6) and 0x3F])
-                .append(B64URL[n and 0x3F])
-            i += 3
-        }
-        when (bytes.size - i) {
-            1 -> {
-                val n = (bytes[i].toInt() and 0xFF) shl 16
-                out
-                    .append(B64URL[(n ushr 18) and 0x3F])
-                    .append(B64URL[(n ushr 12) and 0x3F])
-                    .append("==")
-            }
-            2 -> {
-                val n =
-                    ((bytes[i].toInt() and 0xFF) shl 16) or
-                        ((bytes[i + 1].toInt() and 0xFF) shl 8)
-                out
-                    .append(B64URL[(n ushr 18) and 0x3F])
-                    .append(B64URL[(n ushr 12) and 0x3F])
-                    .append(B64URL[(n ushr 6) and 0x3F])
-                    .append('=')
-            }
-        }
-        return out.toString()
-    }
+        Base64.getUrlEncoder().encodeToString(MessageDigest.getInstance("SHA-512").digest(der))
 
     /** DER bytes of a package's current signing certificates; empty if absent or unreadable. */
     private fun signingCerts(pm: PackageManager, pkg: String): List<ByteArray> =
@@ -180,6 +142,7 @@ object TrustedBrowsers {
         signingCerts(pm, pkg).map { certFingerprint(it) }.toSet()
 
     /** facetCertHash of a package's current signing certificates. */
+    @RequiresApi(Build.VERSION_CODES.O)
     internal fun signingCertHashes(pm: PackageManager, pkg: String): Set<String> =
         signingCerts(pm, pkg).map { facetCertHash(it) }.toSet()
 }

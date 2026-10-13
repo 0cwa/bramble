@@ -582,7 +582,8 @@ browser's webDomain (`https://<host>`) or a native caller's package (`androidapp
 Bitwarden's convention). The prompt shows the caller's app label or web host; the OS-verified
 identifier is what gets saved. Browsers off the trusted list get neither a prompt nor package
 matching (a browser's package is not its pages' identity), already-matching entries get no
-prompt, and declining ("Just fill") never blocks the fill.
+prompt, nor does an entry whose `android://` pin rejects the caller's signer (no added URI could
+make it match), and declining ("Just fill") never blocks the fill.
 
 The provider never writes the vault. It stashes a VEK-encrypted **PendingAssociation**
 (entry id, URI, label, vault id) - Android in an app-private file (`PendingAssociation.kt`),

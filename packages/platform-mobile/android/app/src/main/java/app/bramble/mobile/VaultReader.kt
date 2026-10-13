@@ -334,5 +334,16 @@ object VaultReader {
         matches(login, requestedHosts) ||
             (callerPackage != null && matchesApp(login, callerPackage, callerCertHashes))
 
+    // Whether a non-matching pick should offer "fill and save". Not when the entry already lists
+    // the caller's package: only its android:// pin failed, which no added URI can override.
+    fun offersAssociation(
+        login: AutofillLogin,
+        requestedHosts: List<String>,
+        callerPackage: String?,
+        callerCertHashes: Set<String> = emptySet(),
+    ): Boolean =
+        !matches(login, requestedHosts, callerPackage, callerCertHashes) &&
+            (callerPackage == null || callerPackage !in login.apps)
+
     private fun b64(bytes: ByteArray): String = Base64.encodeToString(bytes, Base64.NO_WRAP)
 }

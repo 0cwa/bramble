@@ -1,6 +1,5 @@
 package app.bramble.mobile
 
-import java.security.MessageDigest
 import java.util.Base64
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -131,25 +130,34 @@ class AutofillLogicTest {
     }
 
     @Test
-    fun `facetCertHash is padded base64url of the cert's SHA-512, as the JDK encoder produces`() {
-        val md = MessageDigest.getInstance("SHA-512")
-        for (size in listOf(0, 1, 2, 3, 31, 32, 63, 64, 65, 700)) {
-            val der = ByteArray(size) { (it * 31).toByte() }
-            assertEquals(Base64.getUrlEncoder().encodeToString(md.digest(der)), TrustedBrowsers.facetCertHash(der))
-        }
+    fun `facetCertHash is padded base64url of the cert's SHA-512`() {
+        // Known answers (python hashlib + urlsafe_b64encode); both use the - and _ digits.
+        assertEquals(
+            "z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg_SpIdNs6c5H0NE8XYXysP-DGNKHfuwvY7kxvUdBeoGlODJ6-SfaPg==",
+            TrustedBrowsers.facetCertHash(ByteArray(0)),
+        )
+        assertEquals(
+            "DznJSsn7_KMpk1dGRpPA3ROkO_rHjwRuzghA6PAquUUYkELMpecMAqBkperT6k-vnwfKOxUlLb0JG6LQGg8YPg==",
+            TrustedBrowsers.facetCertHash("bramble".toByteArray()),
+        )
     }
 
     @Test
-    fun `base64Url handles all byte values and every padding case`() {
-        val all = ByteArray(256) { it.toByte() }
-        assertEquals(
-            Base64.getUrlEncoder().encodeToString(all),
-            TrustedBrowsers.base64Url(all),
+    fun `fill and save is offered only when a saved URI could make the entry match`() {
+        // android.net.Uri isn't mocked on the host JVM, so only the empty-hosts branch runs.
+        val pkg = "com.instagram.android"
+        val pin = TrustedBrowsers.facetCertHash("play build".toByteArray())
+        val fdroid = TrustedBrowsers.facetCertHash("f-droid build".toByteArray())
+        val hostOnly = login("Instagram", "me@x.y", "instagram.com")
+        assertTrue(VaultReader.offersAssociation(hostOnly, emptyList(), pkg, setOf(fdroid)))
+        assertTrue(VaultReader.offersAssociation(hostOnly, emptyList(), null))
+        val pinned = AutofillLogin(
+            "id-1", "Instagram", "me@x.y", "pw", null,
+            listOf("instagram.com"), listOf(pkg), mapOf(pkg to pin),
         )
-        assertEquals("QUJD", TrustedBrowsers.base64Url(byteArrayOf('A'.code.toByte(), 'B'.code.toByte(), 'C'.code.toByte())))
-        assertEquals("QUI=", TrustedBrowsers.base64Url(byteArrayOf('A'.code.toByte(), 'B'.code.toByte())))
-        assertEquals("QQ==", TrustedBrowsers.base64Url(byteArrayOf('A'.code.toByte())))
-        assertEquals("", TrustedBrowsers.base64Url(byteArrayOf()))
+        assertFalse(VaultReader.offersAssociation(pinned, emptyList(), pkg, setOf(pin)))
+        // A different signer fails the pin; an androidapp:// URI can't fix that, so no prompt.
+        assertFalse(VaultReader.offersAssociation(pinned, emptyList(), pkg, setOf(fdroid)))
     }
 
     @Test
