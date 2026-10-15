@@ -1,0 +1,66 @@
+# Bramble Desktop for AppMan
+
+This directory contains a local AppMan installer recipe for Bramble's Linux
+AppImage. It follows AppMan's generated shell-script conventions (`APP`,
+`SITE`, `/opt/$APP`, `AM-updater`, `version`, and `remove`), with Bramble's
+manifest and release signature checks added. The recipe can be hand-authored;
+`appman -t bramble` is an optional way to generate a starting template, not a
+required compiler or registration step.
+
+## Install in the AppImages distrobox
+
+Run these commands **inside the AppImages distrobox**, with this repository
+checkout visible at the indicated path:
+
+```sh
+# Install the recipe's runtime dependencies using the distrobox's package manager.
+sudo apt install curl jq minisign     # Debian/Ubuntu-based box
+# or: sudo dnf install curl jq minisign  # Fedora-based box
+
+appman                               # first run asks where AppMan stores apps
+appman -i /path/to/bramble/packaging/appman-bramble/bramble
+```
+
+AppMan's documented rootless install command accepts a script path. It adapts
+the conventional system paths in this recipe to its configured user-owned
+locations. Future updates can be requested with:
+
+```sh
+appman -u bramble
+```
+
+The recipe supports `x86_64`/`amd64` and `aarch64`/`arm64`; it rejects other
+architectures. It reads the current version and exact per-architecture URL from
+`https://bramble.sh/desktop/latest.json`, checks that the URL agrees with the
+versioned `<version>-desktop` release naming convention, downloads the
+AppImage and its adjacent `.sig`, verifies the Tauri-wrapped minisign signature
+against the updater public key embedded in Bramble, and only then replaces the
+installed image. `version` records the release version used by AppMan's update
+comparison. The updater stages and verifies the new image before replacing the
+old one. The generated desktop entry is conditional on extracting the AppImage
+icon successfully.
+
+AppMan's package launcher is created inside the distrobox. Exporting that
+launcher to the host desktop, and confirming host-to-container GUI launch
+behavior, is a separate distrobox integration step and is not covered by this
+recipe.
+
+## Trust and maintenance
+
+The AppImage is verified with the same minisign public key compiled into
+Bramble's Tauri updater configuration. The current `.sig` asset is a
+base64-wrapped minisign signature, so the recipe unwraps it before invoking
+`minisign`. The HTTPS update manifest chooses the artifact and release version;
+the detached signature independently authenticates the downloaded AppImage.
+The recipe intentionally does not depend on `SHA256SUMS`, which is not an
+independent trust source for an artifact hosted alongside it.
+
+If Bramble changes its Linux asset names, manifest keys, updater key, or
+signature encoding, update this recipe to match the release pipeline.
+
+References:
+
+- [AppMan template guide](https://github.com/ivan-hc/AM/blob/main/docs/guides-and-tutorials/template.md)
+- [AppMan install guide](https://github.com/ivan-hc/AM/blob/main/docs/guides-and-tutorials/install.md)
+- [Bramble desktop update manifest](https://bramble.sh/desktop/latest.json)
+- [Bramble updater verification implementation](../../scripts/verify-updater-signature.mjs)
