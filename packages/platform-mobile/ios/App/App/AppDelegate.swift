@@ -56,9 +56,15 @@ private func hideKeyboardFormAccessoryBar() {
     // The WKWebView form accessory bar (up/down arrows + done) is WKContentView's
     // inputAccessoryView. The private class name is split the way @capacitor/keyboard
     // ships it, so App Store's private-API scanner doesn't flag it.
+    let selector = NSSelectorFromString("inputAccessoryView")
     guard let cls = NSClassFromString(["WK", "Content", "View"].joined()),
-        let method = class_getInstanceMethod(cls, NSSelectorFromString("inputAccessoryView"))
+        let method = class_getInstanceMethod(cls, selector)
     else { return }
     let nilAccessory: @convention(block) (AnyObject) -> AnyObject? = { _ in nil }
-    method_setImplementation(method, imp_implementationWithBlock(nilAccessory))
+    let imp = imp_implementationWithBlock(nilAccessory)
+    // If WebKit only inherits the method, add an override instead of patching
+    // UIResponder's, which every native text field shares.
+    if !class_addMethod(cls, selector, imp, method_getTypeEncoding(method)) {
+        method_setImplementation(method, imp)
+    }
 }
