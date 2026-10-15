@@ -7,21 +7,26 @@ manifest and release signature checks added. The recipe can be hand-authored;
 `appman -t bramble` is an optional way to generate a starting template, not a
 required compiler or registration step.
 
-## Install in the AppImages distrobox
+## Install with AppMan
 
-Run these commands **inside the AppImages distrobox**, with this repository
-checkout visible at the indicated path:
+The installer needs `curl`, `jq`, and `minisign` to read Bramble's release
+manifest and verify its signed AppImage. `base64` is also used to decode the
+signature and is commonly provided by `coreutils`. Install these tools with
+your distribution's package manager in the environment where AppMan runs. For
+example:
 
 ```sh
-# Install the recipe's runtime dependencies using the distrobox's package manager.
-sudo apt install curl jq minisign     # Debian/Ubuntu-based box
-# or: sudo dnf install curl jq minisign  # Fedora-based box
+# Debian or Ubuntu
+sudo apt install curl jq minisign
+# Fedora
+sudo dnf install curl jq minisign
 
-appman                               # first run asks where AppMan stores apps
+appman
 appman -i /path/to/bramble/packaging/appman-bramble/bramble
 ```
 
-AppMan's documented rootless install command accepts a script path. It adapts
+The first `appman` run asks where to store applications if AppMan has not been
+configured yet. Its rootless install command accepts a script path and adapts
 the conventional system paths in this recipe to its configured user-owned
 locations. Future updates can be requested with:
 
@@ -40,10 +45,10 @@ comparison. The updater stages and verifies the new image before replacing the
 old one. The generated desktop entry is conditional on extracting the AppImage
 icon successfully.
 
-AppMan's package launcher is created inside the distrobox. Exporting that
-launcher to the host desktop, and confirming host-to-container GUI launch
-behavior, is a separate distrobox integration step and is not covered by this
-recipe.
+AppMan creates its package launcher in the environment where it runs. If that
+environment is a container, exporting the launcher to the host desktop and
+confirming GUI launch behavior are separate integration steps not covered by
+this recipe.
 
 ## Trust and maintenance
 

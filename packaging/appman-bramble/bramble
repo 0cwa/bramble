@@ -36,7 +36,7 @@ esac
 
 for tool in curl jq minisign base64; do
 	command -v "$tool" >/dev/null 2>&1 || {
-		echo "Missing required command: $tool (install it in the distrobox first)" >&2
+		echo "Missing required command: $tool. Install it before running this script." >&2
 		exit 1
 	}
 done
@@ -103,7 +103,7 @@ esac
 
 for tool in curl jq minisign base64; do
 	command -v "$tool" >/dev/null 2>&1 || {
-		echo "Missing required command: $tool (install it in the distrobox first)" >&2
+		echo "Missing required command: $tool. Install it before running this script." >&2
 		exit 1
 	}
 done
