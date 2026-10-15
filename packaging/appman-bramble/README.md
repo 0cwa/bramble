@@ -9,21 +9,36 @@ required compiler or registration step.
 
 ## Install with AppMan
 
-The installer needs `curl`, `jq`, and `minisign` to read Bramble's release
-manifest and verify its signed AppImage. `base64` is also used to decode the
-signature and is commonly provided by `coreutils`. Install these tools with
-your distribution's package manager in the environment where AppMan runs. For
-example:
+The installer needs `curl` and `jq` to read Bramble's release manifest.
+Signature verification is enabled by default and also needs `minisign` and
+`base64` (`base64` is commonly provided by `coreutils`). Install the required
+tools with your distribution's package manager in the environment where
+AppMan runs. `minisign` is optional only if you explicitly skip verification.
+For example:
 
 ```sh
 # Debian or Ubuntu
-sudo apt install curl jq minisign
+sudo apt install curl jq coreutils
+sudo apt install minisign  # recommended: verifies the downloaded AppImage
 # Fedora
-sudo dnf install curl jq minisign
+sudo dnf install curl jq coreutils
+sudo dnf install minisign  # recommended: verifies the downloaded AppImage
 
 appman
 appman -i /path/to/bramble/packaging/appman-bramble/bramble
 ```
+
+If you cannot install `minisign`, you can skip signature verification for the
+initial install:
+
+```sh
+BRAMBLE_SKIP_VERIFICATION=1 appman -i /path/to/bramble/packaging/appman-bramble/bramble
+```
+
+This bypasses the check that authenticates the downloaded AppImage. AppMan's
+script-path install does not pass extra command-line arguments to the recipe,
+so use the environment variable when installing through AppMan. Future AppMan
+updates still require `minisign` and verify the new AppImage.
 
 The first `appman` run asks where to store applications if AppMan has not been
 configured yet. Its rootless install command accepts a script path and adapts

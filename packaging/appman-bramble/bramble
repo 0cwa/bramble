@@ -7,6 +7,13 @@ set -eu
 APP=bramble
 SITE="flythenimbus/bramble"
 MANIFEST="https://bramble.sh/desktop/latest.json"
+skip_verification=0
+
+case "${BRAMBLE_SKIP_VERIFICATION:-0}" in
+	0) ;;
+	1) skip_verification=1 ;;
+	*) echo "BRAMBLE_SKIP_VERIFICATION must be 0 or 1" >&2; exit 2 ;;
+esac
 
 # Keep the /opt and /usr/local paths in AppMan's documented script shape. AppMan
 # rewrites these to its configured user-owned application/bin/desktop locations.
@@ -34,12 +41,27 @@ case "$(uname -m)" in
 	*) echo "Bramble Desktop AppImage is unavailable for $(uname -m)" >&2; exit 1 ;;
 esac
 
-for tool in curl jq minisign base64; do
+for tool in curl jq; do
 	command -v "$tool" >/dev/null 2>&1 || {
 		echo "Missing required command: $tool. Install it before running this script." >&2
 		exit 1
 	}
 done
+
+if [ "$skip_verification" -eq 0 ]; then
+	for tool in minisign base64; do
+		command -v "$tool" >/dev/null 2>&1 || {
+			if [ "$tool" = minisign ]; then
+				echo "Missing required command: minisign. Install minisign, or set BRAMBLE_SKIP_VERIFICATION=1 to skip signature verification for this install." >&2
+			else
+				echo "Missing required command: $tool. Install it before running this script." >&2
+			fi
+			exit 1
+		}
+	done
+else
+	echo "WARNING: Bramble AppImage signature verification is disabled for this install." >&2
+fi
 
 version=$(curl --fail --silent --show-error --location "$MANIFEST" | jq -er '.version')
 case "$version" in
@@ -53,19 +75,23 @@ expected_url="https://github.com/flythenimbus/bramble/releases/download/${versio
 	exit 1
 }
 
-# The release pipeline publishes a minisign signature next to every AppImage.
-# This is the public half of the updater key embedded in tauri.conf.json.
-cat > "/opt/$APP/tmp/bramble-updater.pub" <<'EOF'
+if [ "$skip_verification" -eq 0 ]; then
+	# The release pipeline publishes a minisign signature next to every AppImage.
+	# This is the public half of the updater key embedded in tauri.conf.json.
+	cat > "/opt/$APP/tmp/bramble-updater.pub" <<'EOF'
 untrusted comment: minisign public key: 67F935EFCFD28F69
 RWRpj9LP7zX5Z/tmH3zxEGUiP+oLc0+1Nbx7l2rY2BzyzFAMxdQ59Sit
 EOF
+fi
 
 curl --fail --silent --show-error --location "$appimage_url" -o "./$APP"
-curl --fail --silent --show-error --location "${appimage_url}.sig" -o "./$APP.sig"
-# Tauri stores the complete minisign signature file base64-wrapped; unwrap it
-# before passing it to minisign.
-base64 -d "./$APP.sig" > "./$APP.minisig"
-minisign -V -m "./$APP" -x "./$APP.minisig" -p "/opt/$APP/tmp/bramble-updater.pub"
+if [ "$skip_verification" -eq 0 ]; then
+	curl --fail --silent --show-error --location "${appimage_url}.sig" -o "./$APP.sig"
+	# Tauri stores the complete minisign signature file base64-wrapped; unwrap it
+	# before passing it to minisign.
+	base64 -d "./$APP.sig" > "./$APP.minisig"
+	minisign -V -m "./$APP" -x "./$APP.minisig" -p "/opt/$APP/tmp/bramble-updater.pub"
+fi
 chmod a+x "./$APP"
 
 cd ..
